@@ -574,6 +574,7 @@ export default function JarvisApp({ initial }: { initial: BootstrapData }) {
         brain={brain}
         voices={voice.voices}
         ttsSupported={voice.ttsSupported}
+        hasConversation={conversations.length > 0}
         onChange={(patch) => void changeSettings(patch)}
         onTestVoice={() => voice.speech.say(`${settings.assistantName} online. This is how I sound, ${addr}.`)}
         onClearHistory={() => void clearHistory()}
