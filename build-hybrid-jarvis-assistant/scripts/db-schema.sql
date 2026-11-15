@@ -15,8 +15,16 @@ create table if not exists settings (
   location text not null default '',
   units text not null default 'metric',
   personality text not null default 'classic',
+  onboarding_completed_steps jsonb not null default '[]'::jsonb,
+  onboarding_dismissed_at timestamptz,
+  onboarding_completed_at timestamptz,
   updated_at timestamptz not null default now()
 );
+
+-- Onboarding setup state (upgrade path for existing databases).
+alter table settings add column if not exists onboarding_completed_steps jsonb not null default '[]'::jsonb;
+alter table settings add column if not exists onboarding_dismissed_at timestamptz;
+alter table settings add column if not exists onboarding_completed_at timestamptz;
 
 create table if not exists conversations (
   id serial primary key,

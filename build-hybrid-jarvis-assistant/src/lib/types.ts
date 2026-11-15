@@ -1,5 +1,7 @@
 // Shared, JSON-safe types used by both the server and the client.
 
+import type { OnboardingState } from "./onboarding/types";
+
 export type BrainMode = "hybrid" | "local" | "cloud";
 /** Which engine plays the "brain": the OpenAI-compatible API endpoint, or an OpenCode agent server. */
 export type BrainBackend = "api" | "opencode";
@@ -30,6 +32,7 @@ export interface SettingsDTO {
   location: string;
   units: Units;
   personality: Personality;
+  onboarding: OnboardingState;
 }
 
 export interface TaskDTO {
