@@ -6,6 +6,7 @@ import { useNow } from "@/hooks/useNow";
 import { timeAgo } from "@/lib/format";
 import type { BrainBackend, BrainMode, BrainStatus, ConversationDTO, MemoryDTO, NoteDTO, Personality, ReminderDTO, SettingsDTO, TaskDTO, Units } from "@/lib/types";
 import { RemindersPanel, TasksPanel } from "./AgendaPanels";
+import { OnboardingPanel } from "./OnboardingPanel";
 import { MemoryPanel, NotesPanel, SystemPanel } from "./SidePanels";
 
 function useEscape(open: boolean, onClose: () => void) {
@@ -21,9 +22,9 @@ function useEscape(open: boolean, onClose: () => void) {
 
 // ------------------------------------------------------------- Form bits
 
-function Section({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+function Section({ title, icon, id, children }: { title: string; icon: ReactNode; id?: string; children: ReactNode }) {
   return (
-    <section className="border-b border-white/[0.06] px-4 py-4">
+    <section id={id} className="scroll-mt-14 border-b border-white/[0.06] px-4 py-4">
       <h3 className="hud-label m-0 mb-3 flex items-center gap-2">
         {icon}
         {title}
@@ -172,6 +173,7 @@ interface SettingsProps {
   brain: BrainStatus;
   voices: SpeechSynthesisVoice[];
   ttsSupported: boolean;
+  hasConversation: boolean;
   onChange: (patch: Partial<SettingsDTO>) => void;
   onTestVoice: () => void;
   onClearHistory: () => void;
@@ -180,7 +182,7 @@ interface SettingsProps {
 
 const PROVIDER_VARS = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY"];
 
-export function SettingsDrawer({ open, onClose, settings, brain, voices, ttsSupported, onChange, onTestVoice, onClearHistory, onClearMemory }: SettingsProps) {
+export function SettingsDrawer({ open, onClose, settings, brain, voices, ttsSupported, hasConversation, onChange, onTestVoice, onClearHistory, onClearMemory }: SettingsProps) {
   useEscape(open, onClose);
   if (!open) return null;
 
@@ -202,7 +204,16 @@ export function SettingsDrawer({ open, onClose, settings, brain, voices, ttsSupp
           </button>
         </header>
 
-        <Section title="Brain routing" icon={<Cpu className="size-3.5" />}>
+        <OnboardingPanel
+          state={settings.onboarding}
+          brain={brain}
+          settings={settings}
+          hasConversation={hasConversation}
+          onChange={onChange}
+          onClose={onClose}
+        />
+
+        <Section title="Brain routing" id="settings-brain" icon={<Cpu className="size-3.5" />}>
           <Segmented<BrainMode>
             value={settings.brainMode}
             onChange={(v) => onChange({ brainMode: v })}
@@ -262,7 +273,7 @@ export function SettingsDrawer({ open, onClose, settings, brain, voices, ttsSupp
           </div>
         </Section>
 
-        <Section title="Identity" icon={<UserRound className="size-3.5" />}>
+        <Section title="Identity" id="settings-identity" icon={<UserRound className="size-3.5" />}>
           <Field label="Assistant name">
             <TextField value={settings.assistantName} onCommit={(v) => v && onChange({ assistantName: v })} maxLength={24} />
           </Field>
@@ -295,7 +306,7 @@ export function SettingsDrawer({ open, onClose, settings, brain, voices, ttsSupp
           </Field>
         </Section>
 
-        <Section title="Voice" icon={<Volume2 className="size-3.5" />}>
+        <Section title="Voice" id="settings-voice" icon={<Volume2 className="size-3.5" />}>
           <Toggle checked={settings.autoSpeak} onChange={(v) => onChange({ autoSpeak: v })} label="Speak replies aloud" hint={ttsSupported ? "Streams speech sentence by sentence." : "Speech synthesis isn't available in this browser."} />
           <Field label="Wake word" hint="Used in hands-free mode, e.g. “Jarvis, what's on my agenda?”">
             <TextField value={settings.wakeWord} onCommit={(v) => v.length >= 2 && onChange({ wakeWord: v })} maxLength={24} />
