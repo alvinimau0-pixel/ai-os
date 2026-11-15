@@ -1,6 +1,10 @@
 import { db } from "@/db";
 import * as s from "@/db/schema";
 import { and, asc, count, desc, eq, ne } from "drizzle-orm";
+import {
+  normalizeOnboardingState,
+  type OnboardingStepId,
+} from "@/lib/onboarding/types";
 import type {
   BootstrapData,
   BrainMode,
@@ -81,6 +85,11 @@ function toSettings(r: SettingsRow): SettingsDTO {
     location: r.location,
     units: r.units === "imperial" ? "imperial" : "metric",
     personality: personalities.includes(r.personality as Personality) ? (r.personality as Personality) : "classic",
+    onboarding: normalizeOnboardingState({
+      completedSteps: r.onboardingCompletedSteps,
+      dismissedAt: iso(r.onboardingDismissedAt),
+      completedAt: iso(r.onboardingCompletedAt),
+    }),
   };
 }
 
@@ -120,17 +129,22 @@ export function sanitizeSettings(input: Record<string, unknown>): Partial<Settin
   if (input.personality === "classic" || input.personality === "concise" || input.personality === "friendly") {
     out.personality = input.personality;
   }
+  if (input.onboarding !== undefined) out.onboarding = normalizeOnboardingState(input.onboarding);
   return out;
 }
 
 export async function updateSettings(patch: Partial<SettingsDTO>): Promise<SettingsDTO> {
   await getSettings();
   const clean = sanitizeSettings(patch as Record<string, unknown>);
-  if (Object.keys(clean).length > 0) {
-    await db
-      .update(s.settings)
-      .set({ ...clean, updatedAt: new Date() })
-      .where(eq(s.settings.id, 1));
+  const { onboarding, ...rest } = clean;
+  if (Object.keys(rest).length > 0 || onboarding !== undefined) {
+    const set: Partial<typeof s.settings.$inferInsert> = { ...rest, updatedAt: new Date() };
+    if (onboarding !== undefined) {
+      set.onboardingCompletedSteps = [...onboarding.completedSteps];
+      set.onboardingDismissedAt = onboarding.dismissedAt ? new Date(onboarding.dismissedAt) : null;
+      set.onboardingCompletedAt = onboarding.completedAt ? new Date(onboarding.completedAt) : null;
+    }
+    await db.update(s.settings).set(set).where(eq(s.settings.id, 1));
   }
   return getSettings();
 }

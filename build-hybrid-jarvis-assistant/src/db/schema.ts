@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+import type { OnboardingStepId } from "@/lib/onboarding/types";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -27,6 +28,9 @@ export const settings = pgTable("settings", {
   location: text("location").notNull().default(""),
   units: text("units").notNull().default("metric"),
   personality: text("personality").notNull().default("classic"),
+  onboardingCompletedSteps: jsonb("onboarding_completed_steps").$type<OnboardingStepId[]>().notNull().default([]),
+  onboardingDismissedAt: ts("onboarding_dismissed_at"),
+  onboardingCompletedAt: ts("onboarding_completed_at"),
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 
