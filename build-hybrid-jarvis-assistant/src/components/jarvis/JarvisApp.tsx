@@ -445,12 +445,12 @@ export default function JarvisApp({ initial }: { initial: BootstrapData }) {
             : "idle";
 
   const statusText: Record<OrbState, string> = {
-    alert: "ALERT",
-    speaking: "SPEAKING",
-    thinking: "PROCESSING",
-    attentive: "I'M LISTENING",
-    listening: "LISTENING",
-    idle: voice.handsFree ? `AWAITING “${settings.wakeWord.toUpperCase()}”` : "STANDING BY",
+    alert: "Alert",
+    speaking: "Speaking",
+    thinking: "Processing",
+    attentive: "I'm listening",
+    listening: "Listening",
+    idle: voice.handsFree ? `Awaiting “${settings.wakeWord}”` : "Standing by",
   };
 
   const sessionTitle = conversations.find((c) => c.id === activeId)?.title ?? null;
@@ -478,8 +478,8 @@ export default function JarvisApp({ initial }: { initial: BootstrapData }) {
           <div className="w-[clamp(110px,23vh,240px)]">
             <JarvisOrb state={orbState} getLevel={voice.getLevel} />
           </div>
-          <div className={`-mt-1 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] ${STATUS_COLOR[orbState]}`} aria-live="polite">
-            <span className="size-1.5 rounded-full bg-current shadow-[0_0_8px_currentColor]" />
+          <div key={orbState} className={`anim-fade-soft -mt-1 flex items-center gap-2 text-[11px] tracking-[0.08em] ${STATUS_COLOR[orbState]}`} aria-live="polite">
+            <span className="size-1.5 rounded-full bg-current" />
             {statusText[orbState]}
           </div>
         </div>
@@ -505,7 +505,7 @@ export default function JarvisApp({ initial }: { initial: BootstrapData }) {
 
       <div className="pointer-events-none fixed right-3 top-16 z-[65] flex w-[min(360px,calc(100vw-1.5rem))] flex-col gap-2" aria-live="assertive">
         {toasts.map((t) => (
-          <div key={t.id} role="status" className={`anim-fade-up pointer-events-auto flex items-start gap-2.5 rounded border bg-deep/95 px-3 py-2.5 text-[13px] shadow-xl backdrop-blur ${TOAST_STYLE[t.tone]}`}>
+          <div key={t.id} role="status" className={`anim-fade-up pointer-events-auto flex items-start gap-2.5 rounded-xl border bg-deep/95 px-3 py-2.5 text-[13px] shadow-xl backdrop-blur ${TOAST_STYLE[t.tone]}`}>
             {t.tone === "ok" ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
             <span className="min-w-0 flex-1 break-words">{t.text}</span>
             <button type="button" onClick={() => setToasts((all) => all.filter((x) => x.id !== t.id))} className="shrink-0 opacity-60 hover:opacity-100" aria-label="Dismiss">
