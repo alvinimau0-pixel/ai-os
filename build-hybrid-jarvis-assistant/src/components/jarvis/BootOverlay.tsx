@@ -41,14 +41,14 @@ export function BootOverlay({ brain, sttSupported, ttsSupported, onInit }: Props
   const ready = shown >= lines.length;
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-[radial-gradient(ellipse_at_center,#0a2236_0%,#02070f_70%)] p-6">
-      <div className="hud-grid" />
+    <div className="fixed inset-0 z-[70] grid place-items-center overflow-y-auto bg-[radial-gradient(ellipse_at_center,#0b1620_0%,#04080e_72%)] p-6">
+      <div className="boot-bloom" />
       <div className="relative flex w-full max-w-md flex-col items-center text-center">
         <div className="w-[min(240px,55vw)]">
           <JarvisOrb state="idle" getLevel={noLevel} />
         </div>
-        <h1 className="glow-text anim-flicker m-0 mt-2 font-hud text-2xl font-bold tracking-[0.4em] text-white sm:text-3xl">J.A.R.V.I.S.</h1>
-        <p className="m-0 mt-1 font-hud text-[10px] tracking-[0.28em] text-mute">JUST A RATHER VERY INTELLIGENT SYSTEM</p>
+        <h1 className="anim-boot-title m-0 mt-2 font-hud text-2xl font-semibold tracking-[0.3em] text-white sm:text-3xl">J.A.R.V.I.S.</h1>
+        <p className="anim-fade-soft m-0 mt-1.5 font-hud text-[11px] tracking-[0.08em] text-mute [animation-delay:0.6s]">Just a rather very intelligent system</p>
 
         <ul className="m-0 mt-6 w-full list-none space-y-1.5 p-0 text-left font-hud text-[11px]" aria-live="polite">
           {lines.slice(0, shown).map((l) => (
@@ -56,7 +56,7 @@ export function BootOverlay({ brain, sttSupported, ttsSupported, onInit }: Props
               <span className="text-arc/60">›</span>
               <span className="min-w-0 truncate text-ink/80">{l.label}</span>
               <span className="mb-0.5 min-w-4 flex-1 border-b border-dotted border-arc/20" />
-              <span className={`shrink-0 tracking-widest ${l.tone === "ok" ? "text-ok" : "text-ember"}`}>{l.status}</span>
+              <span className={`shrink-0 tracking-wide ${l.tone === "ok" ? "text-ok" : "text-ember"}`}>{l.status}</span>
             </li>
           ))}
         </ul>
@@ -66,7 +66,7 @@ export function BootOverlay({ brain, sttSupported, ttsSupported, onInit }: Props
           onClick={onInit}
           autoFocus
           disabled={!ready}
-          className="hud-btn mt-7 h-12 px-8 text-[13px] tracking-[0.3em] disabled:opacity-30"
+          className="hud-btn mt-7 h-12 px-8 text-[13px] tracking-[0.1em] disabled:opacity-30"
         >
           <Power className="size-4" />
           Initialize

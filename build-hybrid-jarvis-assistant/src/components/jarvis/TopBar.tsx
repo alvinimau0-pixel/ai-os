@@ -44,8 +44,8 @@ export function TopBar({ brain, settings, sessionTitle, onMode, onSessions, onNe
       <div className="flex items-center gap-2.5">
         <span className="size-2.5 rounded-full bg-arc" />
         <div className="leading-tight">
-          <div className="text-[13px] font-semibold tracking-[0.18em] text-white">J.A.R.V.I.S.</div>
-          <div className="hidden text-[9px] uppercase tracking-[0.2em] text-mute sm:block">Hybrid AI assistant</div>
+          <div className="text-[13px] font-semibold tracking-[0.12em] text-white">J.A.R.V.I.S.</div>
+          <div className="hidden text-[10px] text-mute sm:block">Hybrid AI assistant</div>
         </div>
       </div>
 
