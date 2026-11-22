@@ -4,7 +4,7 @@
 import type { SettingsDTO, StreamEvent } from "@/lib/types";
 import { getOpenCodeSessionId, getRecentTurns, getSettings, listMemories, openTasks, pendingReminders } from "./data";
 import { getCloudConfig, runCloudAgent, type AgentMessage, type CloudConfig } from "./llm";
-import { ensureOpenCodeSession, getOpenCodeConfig, runOpenCodeAgent } from "./opencode";
+import { ensureOpenCodeSession, probeOpenCode, runOpenCodeAgent } from "./opencode";
 import { buildContext, CONTROL_SKILLS, runSkills, SKILLS } from "./skills";
 import type { SkillContext, SkillResult } from "./skills/core";
 import { fmtDate, fmtTime, fmtWhen } from "./timeutil";
@@ -180,8 +180,9 @@ export async function* think(input: ThinkInput): AsyncGenerator<StreamEvent> {
   const engine = getCloudConfig(); // OpenAI-compatible engine (Ollama, or a keyed cloud API)
   const mode = settings.brainMode;
   const engineUsable = !!engine && mode !== "local";
-  const ocCfg = settings.brainBackend === "opencode" ? await getOpenCodeConfig() : null;
-  const ocUsable = !!ocCfg && mode !== "local";
+  // Route on reachability, not on "credentials present".
+  const ocReachable = settings.brainBackend === "opencode" ? await probeOpenCode() : false;
+  const ocUsable = ocReachable && mode !== "local";
   const brainConfigured = engineUsable || ocUsable;
   const cid = input.conversationId;
   const ctx = buildContext(input.message, { tz: input.tz, now, settings, cloud: engine });
