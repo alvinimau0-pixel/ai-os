@@ -4,6 +4,7 @@
 //
 // Contract (probed against opencode 2.0.18):
 //   - HTTP Basic auth, username "opencode", password from OPENCODE_PASSWORD.
+//     Credentials live in ./auth; this module never reads the password.
 //   - POST /api/session            {title?}          -> {data:{id}}
 //   - POST /api/session/{sid}/prompt {text}          -> queues; the agent loop
 //     runs asynchronously and its output arrives on the event stream.
@@ -13,12 +14,13 @@
 //   - POST /api/session/{sid}/interrupt              -> abort the agent loop.
 
 import type { BrainStatus } from "@/lib/types";
+import { env, getOpenCodeConfig as getOpenCodeAuthConfig, openCodeAuthHeader, redactSecret } from "./auth";
 import { getOpenCodeSessionId, setOpenCodeSessionId } from "./data";
 import http from "node:http";
 
+/** Password-free: carries only where the agent lives. */
 export interface OpenCodeConfig {
   baseUrl: string;
-  password: string | null;
 }
 
 export interface OpenCodeRun {
@@ -31,54 +33,56 @@ export type OpenCodeEvent =
   | { type: "tool"; name: string; status: "running" | "done"; summary?: string }
   | { type: "error"; message: string };
 
-const DEFAULT_BASE_URL = "http://127.0.0.1:4096";
 const PROBE_TTL_MS = 15000;
 
-function env(name: string): string | undefined {
-  const v = process.env[name]?.trim();
-  return v ? v : undefined;
-}
-
-function authHeader(cfg: OpenCodeConfig): Record<string, string> {
-  if (!cfg.password) return {};
-  const token = Buffer.from(`opencode:${cfg.password}`).toString("base64");
-  return { Authorization: `Basic ${token}` };
+/** The auth header for a request, or no header at all when there is no password. */
+function authHeaders(): Record<string, string> {
+  return openCodeAuthHeader() ?? {};
 }
 
 // ---------------------------------------------------------------------------
-// Config discovery + reachability probe (cached)
+// Config + reachability probe (cached)
 // ---------------------------------------------------------------------------
 
-let probeCache: { cfg: OpenCodeConfig; model: string | null; at: number } | { cfg: null; at: number } = { cfg: null, at: 0 };
+let probeCache: { ok: boolean; at: number } = { ok: false, at: 0 };
 
 export function getOpenCodeModel(): string {
   return env("OPENCODE_MODEL") ?? "default agent";
 }
 
-export async function getOpenCodeConfig(): Promise<OpenCodeConfig | null> {
-  const fresh = Date.now() - probeCache.at < PROBE_TTL_MS;
-  if (fresh) return probeCache.cfg;
-  const cfg: OpenCodeConfig = {
-    baseUrl: (env("OPENCODE_URL") ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
-    password: env("OPENCODE_PASSWORD") ?? null,
-  };
+/** Static, password-free config. No network. */
+export function getOpenCodeConfig(): OpenCodeConfig {
+  return { baseUrl: getOpenCodeAuthConfig().url };
+}
+
+/**
+ * Is the agent reachable? `GET {url}/api/session` with a 2500 ms timeout; the
+ * result (success or failure) is cached for 15 s.
+ */
+export async function probeOpenCode(fetchImpl: typeof fetch = globalThis.fetch): Promise<boolean> {
+  if (Date.now() - probeCache.at < PROBE_TTL_MS) return probeCache.ok;
+  const { baseUrl } = getOpenCodeConfig();
   let ok = false;
   try {
-    const res = await fetch(`${cfg.baseUrl}/api/session`, {
-      headers: authHeader(cfg),
+    const res = await fetchImpl(`${baseUrl}/api/session`, {
+      headers: authHeaders(),
       signal: AbortSignal.timeout(2500),
     });
     ok = res.ok;
   } catch {
     ok = false;
   }
-  probeCache = ok ? { cfg, model: getOpenCodeModel(), at: Date.now() } : { cfg: null, at: Date.now() };
-  return ok ? cfg : null;
+  probeCache = { ok, at: Date.now() };
+  return ok;
+}
+
+/** Test hook: forget the cached probe result. */
+export function resetOpenCodeProbe(): void {
+  probeCache = { ok: false, at: 0 };
 }
 
 export async function getOpenCodeStatus(): Promise<BrainStatus | null> {
-  const cfg = await getOpenCodeConfig();
-  if (!cfg) return null;
+  if (!(await probeOpenCode())) return null;
   return { cloudAvailable: true, provider: "OpenCode", model: getOpenCodeModel(), skillCount: 0 };
 }
 
@@ -126,24 +130,24 @@ class OpenCodeEventBus {
 
   private async loop(ac: AbortController): Promise<void> {
     while (!ac.signal.aborted && this.listeners.size > 0) {
-      const cfg = await getOpenCodeConfig();
+      const reachable = await probeOpenCode();
       if (ac.signal.aborted || this.listeners.size === 0) {
         if (this.connection === ac) this.connection = null;
         return;
       }
-      if (!cfg) {
+      if (!reachable) {
         await new Promise((r) => setTimeout(r, this.backoff));
         this.backoff = Math.min(this.backoff * 2, 10000);
         continue;
       }
-      const url = new URL(`${cfg.baseUrl}/api/event`);
+      const url = new URL(`${getOpenCodeConfig().baseUrl}/api/event`);
       const req = http.request(
         {
           hostname: url.hostname,
           port: url.port || 80,
           path: url.pathname + url.search,
           method: "GET",
-          headers: authHeader(cfg),
+          headers: authHeaders(),
         },
         (res) => {
           if (res.statusCode !== 200) {
@@ -213,13 +217,13 @@ const bus = new OpenCodeEventBus();
 // ---------------------------------------------------------------------------
 
 export async function ensureOpenCodeSession(conversationId: number): Promise<OpenCodeRun | null> {
-  const cfg = await getOpenCodeConfig();
-  if (!cfg) return null;
+  if (!(await probeOpenCode())) return null;
+  const cfg = getOpenCodeConfig();
   let sessionID = await getOpenCodeSessionId(conversationId);
   if (sessionID) return { sessionID, config: cfg };
   const res = await fetch(`${cfg.baseUrl}/api/session`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeader(cfg) },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({}),
     signal: AbortSignal.timeout(10000),
   });
@@ -277,8 +281,7 @@ export async function* runOpenCodeAgent(opts: OpenCodeAgentOptions): AsyncGenera
   const { run, signal } = opts;
   const q = new AsyncQueue<OpenCodeEvent | "end">();
   const tools = new Map<string, string>(); // tool call id -> name
-  const config = run.config;
-  const base = config.baseUrl;
+  const base = run.config.baseUrl;
 
   const off = bus.subscribe(run.sessionID, (ev) => {
     const d = ev.data ?? {};
@@ -335,7 +338,7 @@ export async function* runOpenCodeAgent(opts: OpenCodeAgentOptions): AsyncGenera
     try {
       await fetch(`${base}/api/session/${run.sessionID}/interrupt`, {
         method: "POST",
-        headers: authHeader(config),
+        headers: authHeaders(),
         signal: AbortSignal.timeout(4000),
       });
     } catch {
@@ -346,13 +349,14 @@ export async function* runOpenCodeAgent(opts: OpenCodeAgentOptions): AsyncGenera
   try {
     const res = await fetch(`${base}/api/session/${run.sessionID}/prompt`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader(config) },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ text: opts.text }),
       signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      throw new Error(`opencode prompt failed (${res.status}: ${body.slice(0, 140)})`);
+      // Redact before the body can reach a log or the chat UI.
+      throw new Error(`opencode prompt failed (${res.status}: ${redactSecret(body).slice(0, 140)})`);
     }
 
     for (;;) {
